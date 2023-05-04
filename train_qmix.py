@@ -12,10 +12,12 @@ import pandas as pd
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-from algos.qmix_intrinsic import QMIX_IR
+from models.qmix_intrinsic import QMIX_IR
 from utils.buffer import RecReplayBuffer
 from utils.prio_buffer import PrioritizedRecReplayBuffer
-from utils.make_env import get_paths
+from utils.make_env import make_env, make_env_parser
+from utils.utils import get_paths, load_scenario_config, write_params
+from utils.eval import perform_eval_scenar
 from utils.decay import ParameterDecay
 
 def run(cfg):
@@ -23,18 +25,11 @@ def run(cfg):
     run_dir, model_cp_path, log_dir = get_paths(cfg)
     print("Saving model in dir", run_dir)
 
-    # Save args in txt file
-    with open(os.path.join(run_dir, 'args.txt'), 'w') as f:
-        f.write(str(time.time()) + '\n')
-        commit_hash = git.Repo(
-            search_parent_directories=True).head.object.hexsha
-        f.write(
-            "Running train_qmix.py at git commit " + str(commit_hash) + '\n')
-        f.write("Parameters:\n")
-        f.write(json.dumps(vars(cfg), indent=4))
-
     # Init summary writer
     logger = SummaryWriter(str(log_dir))
+
+    # Load scenario config
+    sce_conf = load_scenario_config(cfg, run_dir)
 
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -49,18 +44,27 @@ def run(cfg):
     else:
         device = 'cpu'
 
-    env = imp.load_source('', cfg.env_path).RelOvergenEnv(
-        cfg.state_dim,
-        cfg.optimal_reward,
-        cfg.optimal_diffusion_coeff,
-        cfg.suboptimal_reward,
-        cfg.suboptimal_diffusion_coeff,
-        cfg.save_visited_states)
-    obs_dim = env.obs_dim
-    act_dim = env.act_dim
+    # Create environment
+    if "rel_overgen.py" in cfg.env_path:
+        env = imp.load_source('', cfg.env_path).RelOvergenEnv(
+            cfg.state_dim,
+            cfg.optimal_reward,
+            cfg.optimal_diffusion_coeff,
+            cfg.suboptimal_reward,
+            cfg.suboptimal_diffusion_coeff,
+            cfg.save_visited_states)
+        obs_dim = env.obs_dim
+        act_dim = env.act_dim
+    else:
+        env = make_env(cfg.env_path, sce_conf, discrete_action=True)
+        obs_dim = env.observation_space[0].shape[0]
+        act_dim = env.action_space[0].n
+
+    # Save args in txt file
+    write_params(run_dir, cfg, env)
 
     # Create model
-    nb_agents = 2
+    nb_agents = sce_conf["nb_agents"]
     if cfg.intrinsic_reward_algo == "none":
         intrinsic_reward_params = {}
     elif "noveld" == cfg.intrinsic_reward_algo:
@@ -95,7 +99,7 @@ def run(cfg):
             "ridge": cfg.ridge,
             "lr": cfg.int_rew_lr,
             "device": device}
-    elif "e2snoveld" == cfg.intrinsic_reward_algo:
+    elif "e2snoveld" in cfg.intrinsic_reward_algo:
         if cfg.intrinsic_reward_mode == "central":
             ir_act_dim = nb_agents * act_dim
         else:
@@ -108,6 +112,12 @@ def run(cfg):
             "scale_fac": cfg.scale_fac,
             "lr": cfg.int_rew_lr,
             "device": device}
+        if "-llec" in cfg.intrinsic_reward_algo:
+            intrinsic_reward_params["ablation"] = "LLEC"
+            cfg.intrinsic_reward_algo = "e2snoveld"
+        elif "-eec" in cfg.intrinsic_reward_algo:
+            intrinsic_reward_params["ablation"] = "EEC"
+            cfg.intrinsic_reward_algo = "e2snoveld"
     qmix = QMIX_IR(nb_agents, obs_dim, act_dim, cfg.lr, cfg.gamma, cfg.tau, 
             cfg.hidden_dim, cfg.shared_params, cfg.init_explo_rate,
             cfg.max_grad_norm, device, cfg.use_per, cfg.per_nu, cfg.per_eps,
@@ -130,14 +140,14 @@ def run(cfg):
         buffer = PrioritizedRecReplayBuffer(
             cfg.per_alpha, 
             cfg.buffer_length, 
-            obs_dim, 
+            cfg.episode_length, 
             nb_agents, 
             obs_dim, 
             act_dim)
     else:
         buffer = RecReplayBuffer(
             cfg.buffer_length, 
-            obs_dim, 
+            cfg.episode_length, 
             nb_agents, 
             obs_dim, 
             act_dim)
@@ -149,6 +159,21 @@ def run(cfg):
     eps_decay = ParameterDecay(
         cfg.init_explo_rate, cfg.final_explo_rate, 
         cfg.n_explo_frames, cfg.epsilon_decay_fn)
+
+    # Setup evaluation scenario
+    if cfg.eval_every is not None:
+        if cfg.eval_scenar_file is not None:
+            # Load evaluation scenario
+            with open(cfg.eval_scenar_file, 'r') as f:
+                eval_scenar = json.load(f)
+        else:
+            eval_scenar = [None]
+        eval_data_dict = {
+            "Step": [],
+            "Mean return": [],
+            "Success rate": [],
+            "Mean episode length": []
+        }
 
     # Start training
     print(f"Starting training for {cfg.n_frames} frames")
@@ -207,7 +232,7 @@ def run(cfg):
             ep_success = True
         
         # Check for end of episode
-        if ep_success or ep_step_i + 1 == obs_dim:
+        if ep_success or ep_step_i + 1 == cfg.episode_length:
             # Store next state observations for last step
             ep_obs[ep_step_i + 1, 0, :] = np.stack(next_obs)
             ep_shared_obs[ep_step_i + 1, 0, :] = np.tile( 
@@ -277,6 +302,18 @@ def run(cfg):
             logger.add_scalars('agent0/losses', loss_dict, step_i)
             qmix.update_all_targets()
             qmix.prep_rollouts(device=device)
+            
+        # Evaluation
+        if cfg.eval_every is not None and (step_i + 1) % cfg.eval_every == 0:
+            eval_return, eval_success_rate, eval_ep_len = perform_eval_scenar(
+                env, qmix, cfg.episode_length, recurrent=True)
+            eval_data_dict["Step"].append(step_i + 1)
+            eval_data_dict["Mean return"].append(eval_return)
+            eval_data_dict["Success rate"].append(eval_success_rate)
+            eval_data_dict["Mean episode length"].append(eval_ep_len)
+            # Save eval data
+            eval_df = pd.DataFrame(eval_data_dict)
+            eval_df.to_csv(str(run_dir / 'evaluation_data.csv'))
 
         # Save model
         if (step_i + 1) % cfg.save_interval == 0:
@@ -310,10 +347,15 @@ def run(cfg):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--env_path", type=str, help="Path to the environment",
-                    default="algorithms/MALNovelD/scenarios/coop_push_scenario_sparse.py")
+                    default="algorithms/JIM/scenarios/push_buttons.py")
     parser.add_argument("--model_name", type=str, default="qmix_TEST",
                         help="Name of directory to store model/training contents")
     parser.add_argument("--seed", default=1, type=int, help="Random seed")
+    # Environment
+    parser.add_argument("--episode_length", default=100, type=int)
+    parser.add_argument("--sce_conf_path", type=str, 
+                        default="configs/2a_pol.json",
+                        help="Path to the scenario config file")
     # Training
     parser.add_argument("--n_frames", default=2500, type=int,
                         help="Number of training frames to perform")
@@ -338,6 +380,9 @@ if __name__ == '__main__':
     parser.add_argument("--final_explo_rate", default=0.001, type=float)
     parser.add_argument("--epsilon_decay_fn", default="linear", type=str,
                         choices=["linear", "exp"])
+    # Evalutation
+    parser.add_argument("--eval_every", type=int, default=None)
+    parser.add_argument("--eval_scenar_file", type=str, default=None)
     # Model hyperparameters
     parser.add_argument("--hidden_dim", default=64, type=int)
     parser.add_argument("--lr", default=0.0007, type=float)
@@ -350,7 +395,7 @@ if __name__ == '__main__':
     parser.add_argument("--intrinsic_reward_mode", default="central",
                         choices=["central", "local"])
     parser.add_argument("--intrinsic_reward_algo", default='none', 
-                        choices=['none', 'noveld', 'rnd', 'e3b', 'e2srnd', 'e2snoveld'])
+                        choices=['none', 'noveld', 'rnd', 'e3b', 'e2srnd', 'e2snoveld', 'e2snoveld-llec', 'e2snoveld-eec'])
     parser.add_argument("--int_reward_decay_fn", default="constant", type=str, 
                         choices=["constant", "linear", "sigmoid"])
     parser.add_argument("--int_reward_coeff", default=0.1, type=float)

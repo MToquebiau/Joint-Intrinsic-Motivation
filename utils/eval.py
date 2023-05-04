@@ -4,13 +4,13 @@ import numpy as np
 
 
 def perform_eval_scenar(
-        env, model, init_pos_list, max_episode_length, recurrent=False):
+        env, model, max_episode_length, init_pos_list=[None], recurrent=False):
     rollout_fn = rnn_eval_episode if recurrent else eval_episode
     tot_return = 0.0
     n_success = 0.0
     tot_ep_length = 0.0
     for ep_i in range(len(init_pos_list)):
-        ep_return, ep_length, ep_success = rollout_fn(
+        ep_return, ep_length, ep_success, _ = rollout_fn(
             env, 
             model, 
             max_episode_length,
@@ -29,9 +29,11 @@ def eval_episode(env, model, max_ep_len, init_pos=None, render=False,
     ep_return = 0.0
     ep_length = max_ep_len
     ep_success = False
+    traj = []
     # Reset environment with initial positions
     obs = env.reset(init_pos=init_pos)
     for step_i in range(max_ep_len):
+        traj.append([list(obs[0][0:2]), list(obs[1][0:2])])
         # rearrange observations to be per agent
         torch_obs = torch.Tensor(np.array(obs))
         actions = model.step(torch_obs)
@@ -53,7 +55,7 @@ def eval_episode(env, model, max_ep_len, init_pos=None, render=False,
             break
         obs = next_obs
 
-    return ep_return, ep_length, ep_success
+    return ep_return, ep_length, ep_success, traj
 
 @torch.no_grad()
 def rnn_eval_episode(env, model, max_ep_len, init_pos=None, render=False,
@@ -61,11 +63,13 @@ def rnn_eval_episode(env, model, max_ep_len, init_pos=None, render=False,
     ep_return = 0.0
     ep_length = max_ep_len
     ep_success = False
+    traj = []
     # Get initial last actions and hidden states
     last_actions, qnets_hidden_states = model.get_init_model_inputs()
     # Reset environment with initial positions
     obs = env.reset(init_pos=init_pos)
     for step_i in range(max_ep_len):
+        traj.append([list(obs[0][0:2]), list(obs[1][0:2])])
         # Get actions
         actions, qnets_hidden_states = model.get_actions(
             obs, last_actions, qnets_hidden_states)
@@ -78,7 +82,7 @@ def rnn_eval_episode(env, model, max_ep_len, init_pos=None, render=False,
             print("Rewards", rewards)
 
         if render:
-            time.sleep(10)
+            time.sleep(step_time)
             env.render()
 
         ep_return += rewards[0]
@@ -88,4 +92,4 @@ def rnn_eval_episode(env, model, max_ep_len, init_pos=None, render=False,
             break
         obs = next_obs
 
-    return ep_return, ep_length, ep_success
+    return ep_return, ep_length, ep_success, traj
