@@ -3,12 +3,12 @@ Code for paper "Leveraging Coordination with Joint Intrinsic Motivation in Multi
 
 ## Getting started:
 
-- Install our version multi-agent particle environment: `cd` into the "multiagent-particle-envs" directory and type `pip install -e .`.
-- Install the requirements: `cd` into the main directory and type `pip install -r`.
+- Install our version multi-agent particle environment: `cd` into the "multiagent-particle-envs" directory and run `pip install -e .`.
+- Install the requirements: `cd` into the main directory and run `pip install -r requirements.txt`.
 
 ## Running experiments
 
-To train the model, run the script '/scripts/qmix_train.h'. To run the three variants in the paper (QMIX, QMIX+LIM, QMIX+JIM), change the parameters ``intrinsic_reward_mode`` and ``intrinsic_reward_algo``:
+To train the model, run the command `bash /scripts/qmix_train.sh`. To run the three variants in the paper (QMIX, QMIX+LIM, QMIX+JIM), change the parameters ``intrinsic_reward_mode`` and ``intrinsic_reward_algo``:
 * QMIX: ``intrinsic_reward_algo="none"``
 * QMIX+LIM: ``intrinsic_reward_algo="e2snoveld"`` and ``intrinsic_reward_mode="local"``
 * QMIX+JIM: ``intrinsic_reward_algo="e2snoveld"`` and ``intrinsic_reward_mode="central"``
