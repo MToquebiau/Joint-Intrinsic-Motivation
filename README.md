@@ -3,7 +3,7 @@ Code for paper "Leveraging Coordination with Joint Intrinsic Motivation in Multi
 
 ## Getting started:
 
-With python 3.8 and pip:
+With python 3.8 and pip, in a virtual environment:
 - Install our version multi-agent particle environment: `cd` into the "multiagent-particle-envs" directory and run `pip install -e .`.
 - Install the requirements: `cd` into the main directory and run `pip install -r requirements.txt`.
 
