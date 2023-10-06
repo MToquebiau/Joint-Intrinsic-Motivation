@@ -48,6 +48,7 @@ def run(cfg):
     if "rel_overgen.py" in cfg.env_path:
         env = imp.load_source('', cfg.env_path).RelOvergenEnv(
             cfg.state_dim,
+            cfg.ro_n_agents,
             cfg.optimal_reward,
             cfg.optimal_diffusion_coeff,
             cfg.suboptimal_reward,
@@ -55,16 +56,18 @@ def run(cfg):
             cfg.save_visited_states)
         obs_dim = env.obs_dim
         act_dim = env.act_dim
+        nb_agents = cfg.ro_n_agents
     else:
-        env = make_env(cfg.env_path, sce_conf, discrete_action=True)
+        env = make_env(cfg, sce_conf, discrete_action=True)
         obs_dim = env.observation_space[0].shape[0]
         act_dim = env.action_space[0].n
+        nb_agents = env.n_agents if hasattr(env, 'n_agents') \
+            else sce_conf["nb_agents"]
 
     # Save args in txt file
     write_params(run_dir, cfg, env)
 
     # Create model
-    nb_agents = sce_conf["nb_agents"]
     if cfg.intrinsic_reward_algo == "none":
         intrinsic_reward_params = {}
     elif "noveld" == cfg.intrinsic_reward_algo:
@@ -199,14 +202,17 @@ def run(cfg):
         buffer.init_episode_arrays()
     # Get initial last actions and hidden states
     last_actions, qnets_hidden_states = qmix.get_init_model_inputs()
-    for step_i in tqdm(range(cfg.n_frames)):
+    for step_i in tqdm(range(cfg.n_frames), ncols=0):
         qmix.set_explo_rate(eps_decay.get_param(step_i))
 
         # Get actions
         actions, qnets_hidden_states = qmix.get_actions(
             obs, last_actions, qnets_hidden_states, explore=True)
         last_actions = actions
-        actions = [a.cpu().squeeze().data.numpy() for a in actions]
+        if "magym" in cfg.env_path:
+            actions = [a.cpu().argmax(-1) for a in actions]
+        else:
+            actions = [a.cpu().squeeze().data.numpy() for a in actions]
         next_obs, ext_rewards, dones, _ = env.step(actions)
 
         # Compute intrinsic rewards
@@ -306,7 +312,7 @@ def run(cfg):
         # Evaluation
         if cfg.eval_every is not None and (step_i + 1) % cfg.eval_every == 0:
             eval_return, eval_success_rate, eval_ep_len = perform_eval_scenar(
-                env, qmix, cfg.episode_length, recurrent=True)
+                cfg, env, qmix, recurrent=True)
             eval_data_dict["Step"].append(step_i + 1)
             eval_data_dict["Mean return"].append(eval_return)
             eval_data_dict["Success rate"].append(eval_success_rate)
@@ -314,6 +320,9 @@ def run(cfg):
             # Save eval data
             eval_df = pd.DataFrame(eval_data_dict)
             eval_df.to_csv(str(run_dir / 'evaluation_data.csv'))
+            # Reset environment
+            obs = env.reset()
+            qmix.reset_int_reward(obs)
 
         # Save model
         if (step_i + 1) % cfg.save_interval == 0:
@@ -409,6 +418,7 @@ if __name__ == '__main__':
     parser.add_argument("--cuda_device", default=None, type=str)
     # Relative Overgeneralisation environment
     parser.add_argument("--state_dim", type=int, default=50)
+    parser.add_argument("--ro_n_agents", type=int, default=2)
     parser.add_argument("--optimal_reward", type=float, default=12.0)
     parser.add_argument("--optimal_diffusion_coeff", type=float, default=30.0)
     parser.add_argument("--suboptimal_reward", type=float, default=0.0)
@@ -416,6 +426,12 @@ if __name__ == '__main__':
                         default=0.08)
     parser.add_argument("--save_visited_states", action="store_true",
                          default=False)
+
+    # MA_GYM parameters
+    parser.add_argument("--magym_n_agents", type=int, default=4)
+    parser.add_argument("--magym_env_size", type=int, default=7)
+    parser.add_argument("--magym_obs_range", type=int, default=5)
+    parser.add_argument("--magym_n_preys", type=int, default=2)
 
     config = parser.parse_args()
 

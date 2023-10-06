@@ -48,5 +48,5 @@ def write_params(run_directory, config, env):
             "Running train_qmix.py at git commit " + str(commit_hash) + '\n')
         f.write("Parameters:\n")
         f.write(json.dumps(vars(config), indent=4))
-        f.write("\nScenario parameters:\n")
-        f.write(json.dumps(env.world.scenario_params, indent=4))
+        # f.write("\nScenario parameters:\n")
+        # f.write(json.dumps(env.world.scenario_params, indent=4))

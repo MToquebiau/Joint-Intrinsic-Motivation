@@ -159,8 +159,7 @@ class RecReplayBuffer:
                 shared observations, dim=(ep_length + 1, batch_size, nb_agents,
                 shared_obs_dim).
             ep_acts (numpy.ndarray): Zero-filled array that will contain 
-                actions, dim=(ep_length, batch_size, nb_agents, 
-                act_dim).
+                actions, dim=(ep_length, batch_size, nb_agents, act_dim).
             ep_rews (numpy.ndarray): Zero-filled array that will contain 
                 rewards, dim=(ep_length, batch_size, nb_agents, 1).
             ep_dones (numpy.ndarray): Zero-filled array that will contain 

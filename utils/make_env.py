@@ -1,6 +1,6 @@
 import imp
 
-def make_env(scenario_path, sce_conf={}, discrete_action=False):
+def make_env(cfg, sce_conf={}, discrete_action=False):
     '''
     Creates a MultiAgentEnv object as env. This can be used similar to a gym
     environment by calling env.reset() and env.step().
@@ -17,17 +17,25 @@ def make_env(scenario_path, sce_conf={}, discrete_action=False):
         .action_space       :   Returns the action space for each agent
         .n                  :   Returns the number of Agents
     '''
-    from multiagent.environment import MultiAgentEnv
+    if cfg.env_path.endswith("magym_PredPrey.py"):
+        env = imp.load_source('', cfg.env_path).PredatorPrey(
+            n_agents=cfg.magym_n_agents, 
+            grid_shape=(cfg.magym_env_size, cfg.magym_env_size), 
+            agent_view_mask=(cfg.magym_obs_range, cfg.magym_obs_range),
+            n_preys=cfg.magym_n_preys, 
+            max_steps=cfg.episode_length)
+    else:
+        from multiagent.environment import MultiAgentEnv
 
-    # load scenario from script
-    scenario = imp.load_source('', scenario_path).Scenario()
-    # create world
-    world = scenario.make_world(**sce_conf)
-    # create multiagent environment
-    env = MultiAgentEnv(
-        world, scenario.reset_world, scenario.reward, scenario.observation, 
-        done_callback=scenario.done if hasattr(scenario, "done") else None,
-        discrete_action=discrete_action)
+        # load scenario from script
+        scenario = imp.load_source('', cfg.env_path).Scenario()
+        # create world
+        world = scenario.make_world(**sce_conf)
+        # create multiagent environment
+        env = MultiAgentEnv(
+            world, scenario.reset_world, scenario.reward, scenario.observation, 
+            done_callback=scenario.done if hasattr(scenario, "done") else None,
+            discrete_action=discrete_action)
     return env
 
 def make_env_parser(scenario_path, sce_conf={}, discrete_action=False):
