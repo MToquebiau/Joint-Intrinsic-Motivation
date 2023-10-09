@@ -9,12 +9,12 @@ With python 3.8 and pip, in a virtual environment:
 
 ## Running experiments
 
-To train the model, run the command `bash /scripts/qmix_train.sh`. To run the three variants in the paper (QMIX, QMIX+LIM, QMIX+JIM), change the parameters ``intrinsic_reward_mode`` and ``intrinsic_reward_algo``:
+To train the model, run the command `bash /scripts/train_coop_push.sh`. To run the three variants in the paper (QMIX, QMIX+LIM, QMIX+JIM), change the parameters ``intrinsic_reward_mode`` and ``intrinsic_reward_algo``:
 * QMIX: ``intrinsic_reward_algo="none"``
 * QMIX+LIM: ``intrinsic_reward_algo="e2snoveld"`` and ``intrinsic_reward_mode="local"``
 * QMIX+JIM: ``intrinsic_reward_algo="e2snoveld"`` and ``intrinsic_reward_mode="central"``
 
-Change the `env` parameter to choose which task you want to run training on. The different tasks are available in the "scenario" folder.
+In the `scripts/` directory are multiple scripts that allow to run all the experiments shown in the paper.
 
 Check the technical appendix for hyperparameters used in our experiments.
 
