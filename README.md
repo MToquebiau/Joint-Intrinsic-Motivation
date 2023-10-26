@@ -1,5 +1,4 @@
 # Joint-Intrinsic-Motivation
-Code for paper "Leveraging Coordination with Joint Intrinsic Motivation in Multi-Agent Deep Reinforcement Learning".
 
 ## Getting started:
 
