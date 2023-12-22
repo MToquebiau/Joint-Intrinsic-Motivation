@@ -27,4 +27,5 @@ If you use this work, please cite cthe following paper:
   author={Toquebiau, Maxime and Benamar, Faïz and Bredeche, Nicolas and Jun, Jae Yun},
   booktitle={Proceedings of the 23rd Conference on Autonomous Agents and Multiagent Systems},
   year={2024}
+}
 ```
