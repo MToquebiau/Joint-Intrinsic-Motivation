@@ -17,3 +17,14 @@ In the `scripts/` directory are multiple scripts that allow to run all the exper
 
 Check the technical appendix for hyperparameters used in our experiments.
 
+## Citation
+
+If you use this work, please cite cthe following paper:
+
+```
+@inproceedings{JIM2024,
+  title={Joint Intrinsic Motivation for Coordinated Exploration in Multi-agent Deep Reinforcement Learning},
+  author={Toquebiau, Maxime and Benamar, Faïz and Bredeche, Nicolas and Jun, Jae Yun},
+  booktitle={Proceedings of the 23rd Conference on Autonomous Agents and Multiagent Systems},
+  year={2024}
+```
