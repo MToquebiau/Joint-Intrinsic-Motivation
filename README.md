@@ -1,5 +1,7 @@
 # Joint-Intrinsic-Motivation
 
+Code for paper *"Joint Intrinsic Motivation for Coordinated Exploration in Multi-Agent Reinforcement Learning"*, Toquebiau et al., 2024, presented at AAMAS 2024.
+
 ## Getting started:
 
 With python 3.8 and pip, in a virtual environment:
@@ -22,7 +24,7 @@ Check the technical appendix for hyperparameters used in our experiments.
 If you use this work, please cite cthe following paper:
 
 ```
-@inproceedings{JIM2024,
+@inproceedings{Toquebiau2024_JIM,
   title={Joint Intrinsic Motivation for Coordinated Exploration in Multi-agent Deep Reinforcement Learning},
   author={Toquebiau, Maxime and Benamar, Faïz and Bredeche, Nicolas and Jun, Jae Yun},
   booktitle={Proceedings of the 23rd Conference on Autonomous Agents and Multiagent Systems},
